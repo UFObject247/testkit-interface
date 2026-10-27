@@ -40,7 +40,7 @@ describe("App command copy", () => {
 
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "audit" }));
+    fireEvent.click(screen.getByRole("tab", { name: "audit" }));
     fireEvent.click(screen.getByRole("button", { name: "Copy" }));
 
     await waitFor(() =>
@@ -62,6 +62,274 @@ describe("App command copy", () => {
 
     await waitFor(() => expect(execCommand).toHaveBeenCalledWith("copy"));
     expect(await screen.findByRole("button", { name: "Copied" })).toBeInTheDocument();
+  });
+});
+
+describe("Coverage option combinations component tests (#200)", () => {
+  const originalClipboard = navigator.clipboard;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      configurable: true,
+    });
+    vi.restoreAllMocks();
+  });
+
+  it("updates format dropdown options (html, lcov, text)", () => {
+    render(<App />);
+    const formatSelect = screen.getByLabelText(/report format/i);
+
+    fireEvent.change(formatSelect, { target: { value: "lcov" } });
+    expect(
+      screen.getByText("soroban-testkit coverage . --format lcov --open"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(formatSelect, { target: { value: "text" } });
+    expect(
+      screen.getByText("soroban-testkit coverage . --format text --open"),
+    ).toBeInTheDocument();
+
+    fireEvent.change(formatSelect, { target: { value: "html" } });
+    expect(
+      screen.getByText("soroban-testkit coverage . --format html --open"),
+    ).toBeInTheDocument();
+  });
+
+  it("toggles open report checkbox flag", () => {
+    render(<App />);
+    const openCheckbox = screen.getByLabelText(/open report when complete/i);
+
+    // Uncheck open report
+    fireEvent.click(openCheckbox);
+    expect(
+      screen.getByText("soroban-testkit coverage . --format html"),
+    ).toBeInTheDocument();
+
+    // Check open report back on
+    fireEvent.click(openCheckbox);
+    expect(
+      screen.getByText("soroban-testkit coverage . --format html --open"),
+    ).toBeInTheDocument();
+  });
+
+  it("quotes coverage path when containing spaces and copies combined command", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(<App />);
+
+    const pathInput = screen.getByLabelText(/project or contract path/i);
+    const formatSelect = screen.getByLabelText(/report format/i);
+    const openCheckbox = screen.getByLabelText(/open report when complete/i);
+
+    fireEvent.change(pathInput, { target: { value: "./contracts/my escrow" } });
+    fireEvent.change(formatSelect, { target: { value: "lcov" } });
+    fireEvent.click(openCheckbox); // unchecked
+
+    const expectedCommand = 'soroban-testkit coverage "./contracts/my escrow" --format lcov';
+    expect(screen.getByText(expectedCommand)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expectedCommand));
+  });
+});
+
+describe("Limits option combinations component tests (#199)", () => {
+  const originalClipboard = navigator.clipboard;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      configurable: true,
+    });
+    vi.restoreAllMocks();
+  });
+
+  it("renders default limits options and allows editing function and ramp", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "limits" }));
+
+    const fnInput = screen.getByLabelText(/function/i);
+    const rampInput = screen.getByLabelText(/ramp parameter/i);
+
+    expect(fnInput).toHaveValue("batch_payout");
+    expect(rampInput).toHaveValue("recipients");
+
+    fireEvent.change(fnInput, { target: { value: "deposit_tokens" } });
+    fireEvent.change(rampInput, { target: { value: "depositors" } });
+
+    expect(
+      screen.getByText(
+        "soroban-testkit limits --contract . --fn deposit_tokens --ramp depositors",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("handles paths with spaces and copies limits command combinations", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "limits" }));
+
+    const pathInput = screen.getByLabelText(/project or contract path/i);
+    const fnInput = screen.getByLabelText(/function/i);
+    const rampInput = screen.getByLabelText(/ramp parameter/i);
+
+    fireEvent.change(pathInput, {
+      target: { value: "./target/release build/token.wasm" },
+    });
+    fireEvent.change(fnInput, { target: { value: "mint_batch" } });
+    fireEvent.change(rampInput, { target: { value: "accounts" } });
+
+    const expectedCommand =
+      'soroban-testkit limits --contract "./target/release build/token.wasm" --fn mint_batch --ramp accounts';
+    expect(screen.getByText(expectedCommand)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expectedCommand));
+  });
+});
+
+describe("Audit option combinations component tests (#198)", () => {
+  const originalClipboard = navigator.clipboard;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      value: originalClipboard,
+      configurable: true,
+    });
+    vi.restoreAllMocks();
+  });
+
+  it("toggles fail on warnings strict mode in audit workflow", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "audit" }));
+
+    const strictCheckbox = screen.getByLabelText(/fail on warnings/i);
+    expect(strictCheckbox).toBeChecked();
+    expect(screen.getByText("soroban-testkit audit . --strict")).toBeInTheDocument();
+
+    // Uncheck strict
+    fireEvent.click(strictCheckbox);
+    expect(strictCheckbox).not.toBeChecked();
+    expect(screen.getByText("soroban-testkit audit .")).toBeInTheDocument();
+
+    // Check strict again
+    fireEvent.click(strictCheckbox);
+    expect(strictCheckbox).toBeChecked();
+    expect(screen.getByText("soroban-testkit audit . --strict")).toBeInTheDocument();
+  });
+
+  it("quotes audit path with spaces and copies command to clipboard", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "audit" }));
+
+    const pathInput = screen.getByLabelText(/project or contract path/i);
+    const strictCheckbox = screen.getByLabelText(/fail on warnings/i);
+
+    fireEvent.change(pathInput, { target: { value: "./contracts/safe math" } });
+    fireEvent.click(strictCheckbox); // uncheck strict
+
+    const expectedCommand = 'soroban-testkit audit "./contracts/safe math"';
+    expect(screen.getByText(expectedCommand)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith(expectedCommand));
+  });
+});
+
+describe("Workflow switching component tests (#201)", () => {
+  it("switches between all three workflows and updates descriptions and controls", () => {
+    render(<App />);
+
+    const coverageButton = screen.getByRole("button", { name: "coverage" });
+    const limitsButton = screen.getByRole("button", { name: "limits" });
+    const auditButton = screen.getByRole("button", { name: "audit" });
+
+    // Initial state: coverage
+    expect(coverageButton).toHaveClass("active");
+    expect(limitsButton).not.toHaveClass("active");
+    expect(auditButton).not.toHaveClass("active");
+    expect(
+      screen.getByText("Generate contract-test coverage through cargo-llvm-cov."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/report format/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/open report when complete/i)).toBeInTheDocument();
+
+    // Switch to limits
+    fireEvent.click(limitsButton);
+    expect(coverageButton).not.toHaveClass("active");
+    expect(limitsButton).toHaveClass("active");
+    expect(auditButton).not.toHaveClass("active");
+    expect(
+      screen.getByText("Ramp a contract input to find its practical resource ceiling."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/function/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/ramp parameter/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/report format/i)).not.toBeInTheDocument();
+
+    // Switch to audit
+    fireEvent.click(auditButton);
+    expect(coverageButton).not.toHaveClass("active");
+    expect(limitsButton).not.toHaveClass("active");
+    expect(auditButton).toHaveClass("active");
+    expect(
+      screen.getByText("Scan contract sources for common auth, arithmetic, and TTL risks."),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/fail on warnings/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/function/i)).not.toBeInTheDocument();
+
+    // Switch back to coverage
+    fireEvent.click(coverageButton);
+    expect(coverageButton).toHaveClass("active");
+    expect(screen.getByLabelText(/report format/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/fail on warnings/i)).not.toBeInTheDocument();
+  });
+
+  it("updates generated command and copies accurately when switching workflows", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(<App />);
+
+    // In coverage
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("soroban-testkit coverage . --format html --open"),
+    );
+
+    // Switch to limits
+    fireEvent.click(screen.getByRole("button", { name: "limits" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        "soroban-testkit limits --contract . --fn batch_payout --ramp recipients",
+      ),
+    );
+
+    // Switch to audit
+    fireEvent.click(screen.getByRole("button", { name: "audit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith("soroban-testkit audit . --strict"),
+    );
   });
 });
 
@@ -728,6 +996,102 @@ describe("Navigation enhancements (#112, #113, #114, #115)", () => {
   });
 });
 
+describe("Accessibility enhancements (#104, #105, #106, #107)", () => {
+  it("provides logical heading hierarchy in modules section and cards (#105)", () => {
+    render(<App />);
+    const modulesSection = document.getElementById("modules");
+    expect(modulesSection).toHaveAttribute("aria-labelledby", "modules-heading");
+
+    const modulesHeading = document.getElementById("modules-heading");
+    expect(modulesHeading).not.toBeNull();
+    expect(modulesHeading).toHaveAttribute("id", "modules-heading");
+
+    const articles = document.querySelectorAll("article.module-card");
+    expect(articles.length).toBeGreaterThan(0);
+
+    articles.forEach((article) => {
+      const heading = article.querySelector("h3");
+      expect(heading).not.toBeNull();
+      const headingId = heading?.getAttribute("id");
+      expect(headingId).toBeTruthy();
+      expect(article).toHaveAttribute("aria-labelledby", headingId);
+
+      const workflowGroup = article.querySelector(".module-card-links");
+      expect(workflowGroup).toHaveAttribute("role", "group");
+      const h4 = workflowGroup?.querySelector("h4");
+      expect(h4).not.toBeNull();
+      expect(h4).toHaveTextContent("Available workflows");
+      expect(h4).toHaveClass("sr-only");
+    });
+  });
+
+  it("provides empty state heading when no modules match search filter (#105)", () => {
+    render(<App />);
+    const searchInput = screen.getByLabelText("Search modules by name or description");
+    fireEvent.change(searchInput, { target: { value: "nonexistent-module-xyz" } });
+
+    const emptyStatus = screen.getByRole("status");
+    expect(emptyStatus).toHaveAttribute("aria-labelledby", "module-empty-heading");
+
+    const emptyHeading = screen.getByRole("heading", { level: 3, name: /No modules match/i });
+    expect(emptyHeading).toHaveAttribute("id", "module-empty-heading");
+  });
+
+  it("provides screen-reader summary of active command configuration (#106)", () => {
+    render(<App />);
+    const summaryRegion = screen.getByRole("region", {
+      name: "Active command configuration summary",
+    });
+    expect(summaryRegion).toBeInTheDocument();
+    expect(summaryRegion).toHaveAttribute("tabindex", "0");
+
+    const srSummary = screen.getByTestId("active-command-sr-summary");
+    expect(srSummary).toHaveAttribute("aria-live", "polite");
+    expect(srSummary).toHaveAttribute("aria-atomic", "true");
+    expect(srSummary).toHaveTextContent("Active coverage command settings");
+
+    // Switching workflow updates the SR summary
+    const limitsTab = screen.getByRole("button", { name: "limits" });
+    fireEvent.click(limitsTab);
+
+    expect(srSummary).toHaveTextContent("Active limits command settings");
+  });
+
+  it("includes live region announcement for generated command output (#106)", () => {
+    render(<App />);
+    const generatedSrSummary = screen.getByTestId("generated-command-sr-summary");
+    expect(generatedSrSummary).toHaveAttribute("aria-live", "polite");
+    expect(generatedSrSummary).toHaveTextContent("soroban-testkit coverage");
+  });
+
+  it("supports non-color cues on links and active states (#104)", () => {
+    render(<App />);
+    const navLinks = screen.getAllByRole("link", { name: /^(Install|Modules|Commands)$/ });
+    const commandsLink = navLinks.find((l) => l.textContent === "Commands");
+    expect(commandsLink).toBeDefined();
+
+    fireEvent.click(commandsLink!);
+    expect(commandsLink).toHaveAttribute("aria-current", "location");
+
+    // All module card quick links have non-empty accessible text
+    const moduleLinks = document.querySelectorAll(".module-card-links a");
+    expect(moduleLinks.length).toBeGreaterThan(0);
+    moduleLinks.forEach((link) => {
+      expect(link.textContent?.trim().length).toBeGreaterThan(0);
+    });
+  });
+
+  it("ensures controls and summary cards have container boundaries for high contrast (#107)", () => {
+    render(<App />);
+    const summaryCard = document.querySelector(".summary-card");
+    expect(summaryCard).not.toBeNull();
+    expect(summaryCard).toHaveClass("summary-card");
+
+    const moduleCards = document.querySelectorAll(".module-card");
+    expect(moduleCards.length).toBeGreaterThan(0);
+  });
+});
+
 // #117 — mobile navigation menu
 describe("Mobile navigation menu", () => {
   it("renders the mobile menu toggle button", () => {
@@ -783,6 +1147,52 @@ describe("Footer changelog link", () => {
     const footer = screen.getByRole("contentinfo");
     const changelogLink = within(footer).getByRole("link", { name: /changelog/i });
     expect(changelogLink).toHaveAttribute("href", expect.stringContaining("/releases"));
+  });
+});
+
+// #96 — skip-to-main-content link visible on focus
+describe("Skip-to-main-content link (#96)", () => {
+  it("carries the skip-link class so the CSS can show it on focus", () => {
+    render(<App />);
+    const skipLink = screen.getByRole("link", { name: "Skip to main content" });
+    expect(skipLink).toHaveClass("skip-link");
+  });
+});
+
+// #97 — audit command reference section
+describe("Audit command reference (#97)", () => {
+  it("renders a focusable audit-reference section", () => {
+    render(<App />);
+    expect(document.getElementById("audit-reference")).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("heading", { name: /audit workflow, at a glance/i })).toBeInTheDocument();
+  });
+
+  it("exposes the audit reference as a navigation link", () => {
+    render(<App />);
+    const link = screen.getByRole("link", { name: "Audit reference" });
+    expect(link).toHaveAttribute("href", "#audit-reference");
+  });
+
+  it("documents the ready-to-run command and its arguments", () => {
+    render(<App />);
+    expect(screen.getByLabelText("Audit command example")).toHaveTextContent("soroban-testkit audit");
+    expect(screen.getAllByText("--strict").length).toBeGreaterThan(0);
+  });
+});
+
+// #99 — accessible description for the generated command output
+describe("Generated command output accessibility (#99)", () => {
+  it("wraps the output in a named region", () => {
+    render(<App />);
+    expect(screen.getByRole("region", { name: "Generated command output" })).toBeInTheDocument();
+  });
+
+  it("includes a visually-hidden description within the output region", () => {
+    render(<App />);
+    const region = screen.getByRole("region", { name: "Generated command output" });
+    const desc = document.getElementById(region.getAttribute("aria-describedby") ?? "");
+    expect(desc).toBeInTheDocument();
+    expect(desc?.textContent).toMatch(/copy this command/i);
   });
 });
 
