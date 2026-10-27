@@ -20,6 +20,7 @@ const navSections = [
   { id: "install", label: "Install" },
   { id: "modules", label: "Modules" },
   { id: "commands", label: "Commands" },
+  { id: "audit-reference", label: "Audit reference" },
   { id: "limits-reference", label: "Limits reference" },
 ] as const;
 const navSectionIds = navSections.map((section) => section.id);
@@ -1510,6 +1511,15 @@ export default function App() {
             )}
           </section>
 
+          <div
+            className="output"
+            role="region"
+            aria-label="Generated command output"
+            aria-describedby="command-output-desc"
+          >
+            <span id="command-output-desc" className="sr-only">
+              Copy this command to your terminal to run the selected workflow.
+            </span>
           <div className="output" role="region" aria-label="Generated CLI command">
             <div
               className="sr-only"
@@ -2289,6 +2299,60 @@ soroban-testkit = "0.2.0"`}</code>
             </div>
           )}
         </article>
+
+        <section
+          className="command-reference"
+          id="audit-reference"
+          tabIndex={-1}
+          aria-labelledby="audit-reference-heading"
+        >
+          <div className="reference-header">
+            <p className="eyebrow">Command reference</p>
+            <h2 id="audit-reference-heading">Audit workflow, at a glance.</h2>
+            <p>
+              Use <code>soroban-testkit audit</code> to scan contract sources for authentication
+              gaps, arithmetic pitfalls, and TTL misuse. The scan is read-only and runs entirely
+              offline.
+            </p>
+          </div>
+          <div className="reference-grid">
+            <article className="reference-card">
+              <h3>Ready-to-run command</h3>
+              <pre aria-label="Audit command example"><code>{"soroban-testkit audit \\\n  ./src \\\n  --strict"}</code></pre>
+              <p>
+                Replace <code>./src</code> with the path to your contract source directory. Omit{" "}
+                <code>--strict</code> to treat warnings as informational only.
+              </p>
+            </article>
+            <article className="reference-card">
+              <h3>Arguments</h3>
+              <dl className="reference-arguments">
+                <div>
+                  <dt><code>path</code></dt>
+                  <dd>
+                    Contract source directory. Defaults to{" "}
+                    <code>{localFileGuides.audit.defaultPath}</code>.
+                  </dd>
+                </div>
+                <div>
+                  <dt><code>--strict</code></dt>
+                  <dd>Treat warning-level findings as errors and exit non-zero.</dd>
+                </div>
+              </dl>
+            </article>
+            <article className="reference-card">
+              <h3>Before you run it</h3>
+              <ol>
+                <li>Point the path at the directory that contains your <code>*.rs</code> source files.</li>
+                <li>Review auth and storage warnings first — they surface the most critical privilege issues.</li>
+                <li>Enable strict mode before release to make the audit gate your CI pipeline.</li>
+              </ol>
+              <p className="reference-note">
+                {localFileGuides.audit.offlineGuarantee}
+              </p>
+            </article>
+          </div>
+        </section>
 
         <section
           className="command-reference"
